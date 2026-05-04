@@ -18,6 +18,10 @@ public class WebConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(requestLoggingInterceptor)
                 .addPathPatterns("/**")
-                .excludePathPatterns("/health", "/ready", "/swagger-ui/**", "/v3/api-docs/**");
+                .excludePathPatterns(
+                    "/health", "/ready",
+                    "/actuator", "/actuator/**",
+                    "/swagger-ui/**", "/v3/api-docs/**"
+                );
     }
 }
