@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <springProperty name="APPLICATION_NAME" source="spring.application.name" defaultValue="bankingOps"/>
-    <springProperty name="LOG_FILE" source="logging.file.name" defaultValue="logs/app.log"/>
+    <springProperty name="LOG_FILE" source="logging.file.name" defaultValue="logs/bankingops.log"/>
 
     <!-- Console Appender with JSON -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
@@ -17,7 +17,7 @@
             <customFields>{"service":"${APPLICATION_NAME}"}</customFields>
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>logs/app-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <fileNamePattern>logs/bankingops-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
             <maxFileSize>10MB</maxFileSize>
             <maxHistory>30</maxHistory>
         </rollingPolicy>
