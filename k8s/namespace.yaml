@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bankingops-dev
+  labels:
+    app: bankingops
+    env: dev

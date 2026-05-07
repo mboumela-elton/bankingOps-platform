@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bankingops-prod-like
+  namespace: argocd
+  labels:
+    env: prod-like
+    app: bankingops
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/mboumela-elton/bankingOps-platform.git
+    targetRevision: HEAD
+    path: helm/bankingops
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-prod-like.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: bankingops-prod
+
+  # Prod : sync manuelle pour éviter les surprises en production
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true

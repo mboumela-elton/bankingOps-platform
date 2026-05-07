@@ -6,38 +6,32 @@ A Spring Boot 4.0 application for managing banking transactions with comprehensi
 
 ```
 bankingops-platform/
-├── README.md                     # Root documentation
-├── app/                          # Main application
-│   ├── README.md                 # Application documentation
-│   ├── DOCKER.md                 # Docker setup guide
-│   ├── pom.xml                   # Maven dependencies
-│   ├── Dockerfile                # Multi-stage Docker build
-│   ├── docker-compose.yml        # Docker Compose configuration
-│   ├── .env.example              # Environment variables template
-│   ├── .dockerignore             # Docker build ignore
-│   ├── docker-start.sh           # Docker startup script
-│   ├── init-db.sh                # Database initialization
-│   ├── run-app.sh                # Start application
-│   ├── tests/                    # Test scripts directory
-│   │   ├── test-api.sh           # API endpoint tests
-│   │   ├── test-actuator.sh      # Actuator endpoint tests
-│   │   ├── docker-test.sh        # Docker integration tests
-│   │   └── README.md             # Test documentation
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/msel/app/
-│   │   │   │   ├── config/
-│   │   │   │   ├── controller/
-│   │   │   │   ├── service/
-│   │   │   │   ├── repository/
-│   │   │   │   ├── entity/
-│   │   │   │   ├── dto/
-│   │   │   │   ├── exception/
-│   │   │   │   ├── interceptor/
-│   │   │   │   └── util/
-│   │   │   └── resources/
-│   │   └── test/
-│   └── logs/
+├── README.md
+├── k8s/                          # Kubernetes manifests
+│   ├── namespace.yaml
+│   ├── configmap.yaml
+│   ├── secret.yaml
+│   ├── api-deployment.yaml
+│   ├── api-service.yaml
+│   ├── postgres-statefulset.yaml
+│   ├── postgres-service.yaml
+│   ├── ingress.yaml
+│   ├── hpa.yaml
+│   └── deploy.sh
+└── app/                          # Application
+    ├── README.md
+    ├── DOCKER.md
+    ├── pom.xml
+    ├── Dockerfile
+    ├── docker-compose.yml
+    ├── .env.example
+    ├── docker-start.sh
+    ├── tests/
+    │   ├── test-api.sh
+    │   ├── test-actuator.sh
+    │   ├── docker-test.sh
+    │   └── README.md
+    └── src/
 ```
 
 ## Quick Start
@@ -198,4 +192,3 @@ docker compose up -d --build
 ```
 
 For more information, see [app/README.md](app/README.md) and [app/DOCKER.md](app/DOCKER.md)
-
