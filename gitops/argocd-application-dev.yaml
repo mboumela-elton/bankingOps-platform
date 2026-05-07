@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bankingops-dev
+  namespace: argocd
+  labels:
+    env: dev
+    app: bankingops
+  # Supprime l'application ArgoCD si ce fichier est supprimé de Git
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  # Source : le chart Helm dans le repo Git
+  source:
+    repoURL: https://github.com/mboumela-elton/bankingOps-platform.git
+    targetRevision: HEAD          # Suit toujours la dernière version de la branche
+    path: helm/bankingops         # Chemin vers le chart dans le repo
+    helm:
+      valueFiles:
+        - values.yaml             # Valeurs par défaut
+        - values-dev.yaml         # Overrides dev
+
+  # Destination : où déployer dans le cluster
+  destination:
+    server: https://kubernetes.default.svc   # Cluster local (in-cluster)
+    namespace: bankingops-dev
+
+  # Politique de synchronisation
+  syncPolicy:
+    automated:
+      prune: true       # Supprime les ressources qui ne sont plus dans Git
+      selfHeal: true    # Corrige automatiquement si quelqu'un modifie manuellement le cluster
+    syncOptions:
+      - CreateNamespace=true      # Crée le namespace s'il n'existe pas
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true

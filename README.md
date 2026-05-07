@@ -192,4 +192,3 @@ docker compose up -d --build
 ```
 
 For more information, see [app/README.md](app/README.md) and [app/DOCKER.md](app/DOCKER.md)
-

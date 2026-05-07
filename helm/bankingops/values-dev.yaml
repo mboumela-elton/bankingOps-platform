@@ -13,9 +13,13 @@ api:
       cpu: "300m"
   probes:
     readiness:
-      initialDelaySeconds: 20
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      failureThreshold: 5
     liveness:
-      initialDelaySeconds: 40
+      initialDelaySeconds: 90
+      periodSeconds: 15
+      failureThreshold: 5
 
 hpa:
   enabled: false    # No autoscaling in dev
