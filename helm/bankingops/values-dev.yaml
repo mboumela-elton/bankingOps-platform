@@ -1,0 +1,28 @@
+################################################################################
+# Dev overrides — lightweight, fast iteration
+################################################################################
+
+api:
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "300m"
+  probes:
+    readiness:
+      initialDelaySeconds: 20
+    liveness:
+      initialDelaySeconds: 40
+
+hpa:
+  enabled: false    # No autoscaling in dev
+
+config:
+  springProfile: dev
+  logLevel: DEBUG
+
+ingress:
+  host: bankingops-dev.local

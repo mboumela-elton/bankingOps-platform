@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: transaction-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  selector:
+    app: transaction-api
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.api.port }}
+  type: {{ .Values.service.type }}

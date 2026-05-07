@@ -1,0 +1,49 @@
+################################################################################
+# Prod-like overrides — stricter limits, more replicas, tighter autoscaling
+################################################################################
+
+api:
+  replicas: 3
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "300m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  jvm:
+    maxRAMPercentage: "50.0"
+    initialRAMPercentage: "30.0"
+  probes:
+    readiness:
+      initialDelaySeconds: 45
+      failureThreshold: 5
+    liveness:
+      initialDelaySeconds: 90
+      failureThreshold: 5
+
+hpa:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  cpu:
+    targetUtilization: 60
+  memory:
+    targetUtilization: 70
+
+postgres:
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  storage: 10Gi
+
+config:
+  springProfile: prod
+  logLevel: WARN
+
+ingress:
+  host: bankingops.prod.local

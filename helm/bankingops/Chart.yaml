@@ -1,0 +1,12 @@
+apiVersion: v2
+name: bankingops
+description: Banking Operations Platform - Spring Boot API with PostgreSQL
+type: application
+version: 0.1.0
+appVersion: "0.0.1-SNAPSHOT"
+keywords:
+  - banking
+  - spring-boot
+  - postgresql
+maintainers:
+  - name: msel
