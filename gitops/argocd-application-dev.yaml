@@ -15,7 +15,7 @@ spec:
   # Source : le chart Helm dans le repo Git
   source:
     repoURL: https://github.com/mboumela-elton/bankingOps-platform.git
-    targetRevision: HEAD          # Suit toujours la dernière version de la branche
+    targetRevision: develop          # Suit la branche develop
     path: helm/bankingops         # Chemin vers le chart dans le repo
     helm:
       valueFiles:
