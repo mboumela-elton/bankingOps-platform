@@ -280,3 +280,4 @@ app/docker-start.sh
 .vscode settings
 vscode-test/
 out/
+ARGOCD_GITOPS.txt
