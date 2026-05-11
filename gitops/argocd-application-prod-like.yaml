@@ -13,7 +13,7 @@ spec:
 
   source:
     repoURL: https://github.com/mboumela-elton/bankingOps-platform.git
-    targetRevision: HEAD
+    targetRevision: develop
     path: helm/bankingops
     helm:
       valueFiles:
@@ -24,7 +24,6 @@ spec:
     server: https://kubernetes.default.svc
     namespace: bankingops-prod
 
-  # Prod : sync manuelle pour éviter les surprises en production
   syncPolicy:
     automated:
       prune: true
