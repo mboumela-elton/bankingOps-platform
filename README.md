@@ -151,16 +151,78 @@ helm uninstall bankingops -n bankingops-dev
 
 ---
 
-## 5. GitOps (ArgoCD)
+## 5. GitOps (ArgoCD + Gitea local)
 
-### Install ArgoCD and connect GitHub repo
+ArgoCD surveille un repo **Gitea local** dans le cluster — aucune dépendance réseau externe.
 
-```bash
-# Requires a GitHub token with repo read scope
-./gitops/install-argocd.sh <github-token>
+### Architecture
+
+```
+git push → Gitea (in-cluster) ← ArgoCD surveille → kubectl apply automatique
 ```
 
-### Access ArgoCD UI
+### Déployer ArgoCD + Gitea
+
+```bash
+# Créer les namespaces
+kubectl create namespace argocd
+kubectl create namespace gitea
+
+# Déployer Gitea
+kubectl apply -f gitops/gitea.yaml
+
+# Installer ArgoCD
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/crds/application-crd.yaml
+
+# Supprimer les NetworkPolicies (lab local)
+kubectl delete networkpolicies -n argocd --all
+
+# Attendre que tout soit prêt
+kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=180s
+kubectl wait --for=condition=available deployment/gitea -n gitea --timeout=120s
+```
+
+### Configurer Gitea et pousser le code
+
+```bash
+# Port-forward Gitea
+kubectl port-forward svc/gitea 3000:3000 -n gitea &
+
+# Créer l'utilisateur admin
+kubectl exec -n gitea deployment/gitea -- gitea admin user create \
+  --username msel --password msel123 --email msel@local.dev \
+  --admin --must-change-password=false
+
+# Créer le repo
+curl -s -X POST http://localhost:3000/api/v1/user/repos \
+  -H "Content-Type: application/json" -u "msel:msel123" \
+  -d '{"name":"bankingops-platform","private":false,"auto_init":false,"default_branch":"develop"}'
+
+# Pousser le code
+git remote add gitea http://msel:msel123@localhost:3000/msel/bankingops-platform.git
+git push gitea develop --force
+```
+
+### Configurer ArgoCD
+
+```bash
+# Secret repo Gitea
+kubectl create secret generic repo-gitea-bankingops \
+  --namespace=argocd \
+  --from-literal=type=git \
+  --from-literal=url=http://gitea.gitea.svc.cluster.local:3000/msel/bankingops-platform.git \
+  --from-literal=username=msel \
+  --from-literal=password=msel123 \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl label secret repo-gitea-bankingops \
+  argocd.argoproj.io/secret-type=repository -n argocd
+
+# Déployer l'application ArgoCD
+kubectl apply -f gitops/argocd-application-dev.yaml
+```
+
+### Accéder à ArgoCD UI
 
 ```bash
 kubectl port-forward svc/argocd-server -n argocd 8080:443
@@ -169,21 +231,23 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
   -o jsonpath="{.data.password}" | base64 -d
 ```
 
-### Check sync status
+### Vérifier la synchronisation
 
 ```bash
 kubectl get applications -n argocd
+kubectl get pods -n bankingops-dev
 ```
 
-### GitOps workflow
+### Workflow GitOps
 
 ```bash
-# 1. Modify a value (e.g. replicas in values-dev.yaml)
-# 2. Commit and push
+# 1. Modifier une valeur (ex: replicas dans values-dev.yaml)
+# 2. Pousser vers Gitea
 git add helm/bankingops/values-dev.yaml
 git commit -m "feat: scale to 3 replicas"
-git push origin develop
-# 3. ArgoCD detects the change and syncs automatically
+git push gitea develop
+# 3. ArgoCD détecte et synchronise automatiquement (< 3 min)
+kubectl get pods -n bankingops-dev -w
 ```
 
 ---

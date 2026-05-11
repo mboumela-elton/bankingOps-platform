@@ -13,7 +13,7 @@ spec:
 
   # Source : le chart Helm dans le repo Git
   source:
-    repoURL: https://github.com/mboumela-elton/bankingOps-platform.git
+    repoURL: http://gitea.gitea.svc.cluster.local:3000/msel/bankingops-platform.git
     targetRevision: develop
     path: helm/bankingops
     helm:
