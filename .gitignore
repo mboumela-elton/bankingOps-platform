@@ -281,3 +281,4 @@ app/docker-start.sh
 vscode-test/
 out/
 ARGOCD_GITOPS.txt
+CICD_PHASE6.txt
