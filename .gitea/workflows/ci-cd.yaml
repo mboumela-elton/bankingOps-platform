@@ -1,13 +1,9 @@
 ################################################################################
 # Banking Operations Platform — CI/CD Pipeline
 #
-# Flux :
-#   commit → tests → build image → scan Trivy → push registry → update values
-#   → ArgoCD détecte → sync Kubernetes
-#
-# Note : on n'utilise pas actions/checkout ni actions/setup-java car le runner
-# tourne dans des containers qui n'ont pas Node.js (requis par ces actions).
-# On fait le checkout manuellement via git clone.
+# Un seul job qui tourne directement sur le runner (pas de container séparé).
+# Le runner a accès au DinD via DOCKER_HOST=tcp://localhost:2375.
+# Maven est installé dans le job.
 ################################################################################
 
 name: CI/CD Pipeline
@@ -20,58 +16,70 @@ on:
     paths-ignore:
       - '**.md'
       - '**.txt'
-      - 'helm/bankingops/values-dev.yaml'  # évite la boucle infinie
+      - 'helm/bankingops/values-dev.yaml'
 
 env:
   REGISTRY: registry.gitea.svc.cluster.local:5000
   IMAGE_NAME: bankingops-api
   GITEA_URL: http://gitea.gitea.svc.cluster.local:3000
   GITEA_USER: msel
+  DOCKER_HOST: tcp://localhost:2375
 
 jobs:
-  ################################################################################
-  # JOB 1 — Tests unitaires
-  ################################################################################
-  test:
-    name: Tests
+  pipeline:
+    name: CI/CD
     runs-on: ubuntu-latest
-    container:
-      image: maven:3.9-eclipse-temurin-17
 
     steps:
+      ##########################################################################
+      # 1. Checkout
+      ##########################################################################
       - name: Checkout code
         run: |
           git clone ${{ env.GITEA_URL }}/msel/bankingops-platform.git .
           git checkout ${{ github.sha }}
 
+      ##########################################################################
+      # 2. Install Java + Maven
+      ##########################################################################
+      - name: Install Java 17 and Maven
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq wget curl git sed
+
+          # Install Temurin 17
+          wget -q https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.11%2B9/OpenJDK17U-jdk_x64_linux_hotspot_17.0.11_9.tar.gz \
+            -O /tmp/jdk17.tar.gz
+          mkdir -p /opt/java/17
+          tar -xzf /tmp/jdk17.tar.gz -C /opt/java/17 --strip-components=1
+          export JAVA_HOME=/opt/java/17
+          export PATH=$JAVA_HOME/bin:$PATH
+          echo "JAVA_HOME=/opt/java/17" >> $GITHUB_ENV
+          echo "PATH=/opt/java/17/bin:$PATH" >> $GITHUB_ENV
+
+          # Install Maven
+          wget -q https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz \
+            -O /tmp/maven.tar.gz
+          mkdir -p /opt/maven
+          tar -xzf /tmp/maven.tar.gz -C /opt/maven --strip-components=1
+          echo "PATH=/opt/maven/bin:/opt/java/17/bin:$PATH" >> $GITHUB_ENV
+
+          java -version
+          /opt/maven/bin/mvn -version
+
+      ##########################################################################
+      # 3. Tests unitaires
+      ##########################################################################
       - name: Run unit tests
         run: |
+          export JAVA_HOME=/opt/java/17
+          export PATH=/opt/maven/bin:/opt/java/17/bin:$PATH
           cd app
           mvn test -B 2>&1 | tail -30
 
-  ################################################################################
-  # JOB 2 — Build, Scan, Push
-  ################################################################################
-  build-and-push:
-    name: Build & Push
-    runs-on: ubuntu-latest
-    needs: test
-    container:
-      image: docker:24-cli
-      env:
-        DOCKER_HOST: tcp://localhost:2375
-
-    outputs:
-      image_tag: ${{ steps.meta.outputs.tag }}
-      image_full: ${{ steps.meta.outputs.full }}
-
-    steps:
-      - name: Checkout code
-        run: |
-          apk add --no-cache git curl
-          git clone ${{ env.GITEA_URL }}/msel/bankingops-platform.git .
-          git checkout ${{ github.sha }}
-
+      ##########################################################################
+      # 4. Set image tag
+      ##########################################################################
       - name: Set image metadata
         id: meta
         run: |
@@ -81,16 +89,11 @@ jobs:
           FULL="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}"
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "full=${FULL}" >> $GITHUB_OUTPUT
-          echo "Image will be: ${FULL}"
+          echo "Image: ${FULL}"
 
-      - name: Wait for Docker daemon
-        run: |
-          for i in $(seq 1 15); do
-            docker info > /dev/null 2>&1 && echo "Docker ready" && break
-            echo "Waiting... $i/15"
-            sleep 2
-          done
-
+      ##########################################################################
+      # 5. Build Docker image
+      ##########################################################################
       - name: Build Docker image
         run: |
           docker build \
@@ -98,6 +101,9 @@ jobs:
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
             app/
 
+      ##########################################################################
+      # 6. Scan Trivy
+      ##########################################################################
       - name: Scan image with Trivy
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
@@ -111,35 +117,23 @@ jobs:
             --no-progress \
             ${{ steps.meta.outputs.full }} 2>&1 || true
 
-      - name: Push image to local registry
+      ##########################################################################
+      # 7. Push image
+      ##########################################################################
+      - name: Push image to registry
         run: |
           docker push ${{ steps.meta.outputs.full }}
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           echo "Pushed: ${{ steps.meta.outputs.full }}"
 
-  ################################################################################
-  # JOB 3 — Update Helm values → déclenche ArgoCD sync
-  ################################################################################
-  update-helm:
-    name: Update Helm Values
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    container:
-      image: alpine/git:latest
-
-    steps:
-      - name: Checkout code
-        run: |
-          git clone http://${{ env.GITEA_USER }}:${{ secrets.GITEATOKEN }}@gitea.gitea.svc.cluster.local:3000/${{ env.GITEA_USER }}/bankingops-platform.git .
-          git checkout ${{ github.sha }}
-
+      ##########################################################################
+      # 8. Update Helm values → ArgoCD sync
+      ##########################################################################
       - name: Update image tag in values-dev.yaml
         run: |
-          TAG="${{ needs.build-and-push.outputs.image_tag }}"
+          TAG="${{ steps.meta.outputs.tag }}"
           REGISTRY="${{ env.REGISTRY }}"
           IMAGE="${{ env.IMAGE_NAME }}"
-
-          echo "Updating image to: ${REGISTRY}/${IMAGE}:${TAG}"
 
           sed -i "s|repository:.*|repository: ${REGISTRY}/${IMAGE}|" \
             helm/bankingops/values-dev.yaml
@@ -157,12 +151,12 @@ jobs:
           git config user.email "ci@bankingops.local"
 
           git add helm/bankingops/values-dev.yaml
-          git diff --staged --quiet && echo "No changes" && exit 0
+          git diff --staged --quiet && echo "No changes to commit" && exit 0
 
-          git commit -m "ci: update image tag to ${{ needs.build-and-push.outputs.image_tag }} [skip ci]"
+          git commit -m "ci: update image tag to ${{ steps.meta.outputs.tag }} [skip ci]"
 
           git remote set-url origin \
             http://${{ env.GITEA_USER }}:${{ secrets.GITEATOKEN }}@gitea.gitea.svc.cluster.local:3000/${{ env.GITEA_USER }}/bankingops-platform.git
 
           git push origin ${{ github.ref_name }}
-          echo "Pushed — ArgoCD will detect and sync automatically"
+          echo "Done — ArgoCD will sync automatically"
