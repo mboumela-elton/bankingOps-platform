@@ -1,6 +1,18 @@
 ################################################################################
-# Gitea — Lightweight local Git server
+# Gitea — Lightweight local Git server (v1.22 with persistent storage)
 ################################################################################
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitea-pvc
+  namespace: gitea
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -18,10 +30,10 @@ spec:
     spec:
       containers:
         - name: gitea
-          image: gitea/gitea:1.21-rootless
+          image: gitea/gitea:1.22-rootless
           ports:
-            - containerPort: 3000   # HTTP
-            - containerPort: 2222   # SSH
+            - containerPort: 3000
+            - containerPort: 2222
           env:
             - name: GITEA__server__ROOT_URL
               value: "http://gitea.gitea.svc.cluster.local:3000"
@@ -37,12 +49,17 @@ spec:
               value: "bankingops-secret-key-local"
             - name: GITEA__security__INTERNAL_TOKEN
               value: "bankingops-internal-token-local"
+            - name: GITEA__actions__ENABLED
+              value: "true"
+            - name: GITEA__actions__DEFAULT_ACTIONS_URL
+              value: "github"
           volumeMounts:
             - name: gitea-data
               mountPath: /var/lib/gitea
       volumes:
         - name: gitea-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: gitea-pvc
 ---
 apiVersion: v1
 kind: Service

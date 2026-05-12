@@ -1,0 +1,127 @@
+################################################################################
+# Gitea Actions Runner — exécute les pipelines CI/CD
+################################################################################
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitea-runner
+  namespace: gitea
+---
+# Permissions pour que le runner puisse interagir avec le cluster
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gitea-runner-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: gitea-runner
+    namespace: gitea
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea-runner
+  namespace: gitea
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitea-runner
+  template:
+    metadata:
+      labels:
+        app: gitea-runner
+    spec:
+      serviceAccountName: gitea-runner
+      containers:
+        # Docker-in-Docker sidecar pour builder les images
+        - name: dind
+          image: docker:24-dind
+          securityContext:
+            privileged: true
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          volumeMounts:
+            - name: docker-graph-storage
+              mountPath: /var/lib/docker
+        - name: runner
+          image: gitea/act_runner:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Waiting for Docker daemon on tcp://localhost:2375..."
+              for i in $(seq 1 30); do
+                if wget -q -O- http://localhost:2375/version > /dev/null 2>&1; then
+                  echo "Docker ready!"
+                  break
+                fi
+                echo "Attempt $i/30..."
+                sleep 2
+              done
+
+              echo "Registering runner..."
+              /usr/local/bin/act_runner register \
+                --no-interactive \
+                --instance "${GITEA_INSTANCE_URL}" \
+                --token "${GITEA_RUNNER_REGISTRATION_TOKEN}" \
+                --name "${GITEA_RUNNER_NAME}" \
+                --labels "${GITEA_RUNNER_LABELS}"
+
+              echo "Starting runner daemon..."
+              exec /usr/local/bin/act_runner daemon
+          env:
+            - name: GITEA_INSTANCE_URL
+              value: "http://gitea.gitea.svc.cluster.local:3000"
+            - name: GITEA_RUNNER_REGISTRATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-runner-secret
+                  key: token
+            - name: GITEA_RUNNER_NAME
+              value: "kind-runner"
+            - name: GITEA_RUNNER_LABELS
+              value: "ubuntu-latest:docker://node:20-bullseye,ubuntu-22.04:docker://node:20-bullseye"
+            - name: DOCKER_HOST
+              value: "tcp://localhost:2375"
+            - name: CONFIG_FILE
+              value: "/etc/act_runner/config.yaml"
+          volumeMounts:
+            - name: runner-config
+              mountPath: /etc/act_runner
+          securityContext:
+            privileged: true
+            runAsUser: 0
+      volumes:
+        - name: runner-config
+          configMap:
+            name: gitea-runner-config
+        - name: docker-graph-storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitea-runner-config
+  namespace: gitea
+data:
+  config.yaml: |
+    log:
+      level: info
+    runner:
+      capacity: 3
+      timeout: 3h
+      insecure: true
+    cache:
+      enabled: true
+      dir: /tmp/cache
+    container:
+      network: host
+      privileged: true
+      options: "--add-host=registry.gitea.svc.cluster.local:$(REGISTRY_IP)"
+      valid_volumes:
+        - /var/run/docker.sock
