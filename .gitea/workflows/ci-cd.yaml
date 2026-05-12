@@ -45,8 +45,10 @@ jobs:
       ##########################################################################
       - name: Run unit tests
         run: |
+          export PATH=/usr/local/bin:/opt/maven/bin:$PATH
+          export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java) 2>/dev/null || echo /usr/bin/java)))
           cd app
-          mvn test -B 2>&1 | tail -30
+          /usr/local/bin/mvn test -B 2>&1 | tail -30
 
       ##########################################################################
       # 4. Set image tag
@@ -67,7 +69,8 @@ jobs:
       ##########################################################################
       - name: Build Docker image
         run: |
-          docker build \
+          export PATH=/usr/local/bin:$PATH
+          /usr/local/bin/docker build \
             -t ${{ steps.meta.outputs.full }} \
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
             app/
@@ -77,11 +80,12 @@ jobs:
       ##########################################################################
       - name: Scan image with Trivy
         run: |
+          export PATH=/usr/local/bin:$PATH
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
             | sh -s -- -b /usr/local/bin v0.50.0 2>/dev/null
 
           echo "=== Trivy Security Scan ==="
-          trivy image \
+          /usr/local/bin/trivy image \
             --format table \
             --severity HIGH,CRITICAL \
             --exit-code 0 \
@@ -93,8 +97,9 @@ jobs:
       ##########################################################################
       - name: Push image to registry
         run: |
-          docker push ${{ steps.meta.outputs.full }}
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          export PATH=/usr/local/bin:$PATH
+          /usr/local/bin/docker push ${{ steps.meta.outputs.full }}
+          /usr/local/bin/docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           echo "Pushed: ${{ steps.meta.outputs.full }}"
 
       ##########################################################################
