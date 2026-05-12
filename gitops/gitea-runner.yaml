@@ -89,7 +89,7 @@ spec:
             - name: GITEA_RUNNER_NAME
               value: "kind-runner"
             - name: GITEA_RUNNER_LABELS
-              value: "ubuntu-latest:docker://node:20-bullseye,ubuntu-22.04:docker://node:20-bullseye"
+              value: "ubuntu-latest:host,ubuntu-22.04:host"
             - name: DOCKER_HOST
               value: "tcp://localhost:2375"
             - name: CONFIG_FILE
@@ -121,11 +121,10 @@ data:
       timeout: 3h
       insecure: true
     cache:
-      enabled: true
-      dir: /tmp/cache
+      enabled: false
     container:
       network: host
       privileged: true
-      options: "--add-host=registry.gitea.svc.cluster.local:$(REGISTRY_IP)"
+      options: "-e DOCKER_HOST=tcp://localhost:2375 -e DOCKER_API_VERSION=1.43"
       valid_volumes:
         - /var/run/docker.sock
