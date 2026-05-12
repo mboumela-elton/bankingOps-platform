@@ -68,6 +68,17 @@ spec:
               apk add --no-cache docker-cli 2>/dev/null || \
                 (apt-get update -qq && apt-get install -y -qq docker.io) 2>/dev/null || true
 
+              echo "Installing Java 17 and Maven..."
+              apk add --no-cache openjdk17 wget 2>/dev/null || true
+              wget -q https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz \
+                -O /tmp/maven.tar.gz 2>/dev/null
+              mkdir -p /opt/maven
+              tar -xzf /tmp/maven.tar.gz -C /opt/maven --strip-components=1 2>/dev/null
+              ln -sf /opt/maven/bin/mvn /usr/local/bin/mvn 2>/dev/null || true
+              rm -f /tmp/maven.tar.gz
+              echo "Java: $(java -version 2>&1 | head -1)"
+              echo "Maven: $(mvn -version 2>&1 | head -1)"
+
               echo "Registering runner..."
               /usr/local/bin/act_runner register \
                 --no-interactive \

@@ -41,40 +41,10 @@ jobs:
           git checkout ${{ github.sha }}
 
       ##########################################################################
-      # 2. Install Java + Maven
-      ##########################################################################
-      - name: Install Java 17 and Maven
-        run: |
-          apt-get update -qq
-          apt-get install -y -qq wget curl git sed
-
-          # Install Temurin 17
-          wget -q https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.11%2B9/OpenJDK17U-jdk_x64_linux_hotspot_17.0.11_9.tar.gz \
-            -O /tmp/jdk17.tar.gz
-          mkdir -p /opt/java/17
-          tar -xzf /tmp/jdk17.tar.gz -C /opt/java/17 --strip-components=1
-          export JAVA_HOME=/opt/java/17
-          export PATH=$JAVA_HOME/bin:$PATH
-          echo "JAVA_HOME=/opt/java/17" >> $GITHUB_ENV
-          echo "PATH=/opt/java/17/bin:$PATH" >> $GITHUB_ENV
-
-          # Install Maven
-          wget -q https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz \
-            -O /tmp/maven.tar.gz
-          mkdir -p /opt/maven
-          tar -xzf /tmp/maven.tar.gz -C /opt/maven --strip-components=1
-          echo "PATH=/opt/maven/bin:/opt/java/17/bin:$PATH" >> $GITHUB_ENV
-
-          java -version
-          /opt/maven/bin/mvn -version
-
-      ##########################################################################
-      # 3. Tests unitaires
+      # 2. Tests unitaires
       ##########################################################################
       - name: Run unit tests
         run: |
-          export JAVA_HOME=/opt/java/17
-          export PATH=/opt/maven/bin:/opt/java/17/bin:$PATH
           cd app
           mvn test -B 2>&1 | tail -30
 
