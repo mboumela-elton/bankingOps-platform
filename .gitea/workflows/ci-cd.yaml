@@ -24,6 +24,7 @@ env:
   GITEA_URL: http://gitea.gitea.svc.cluster.local:3000
   GITEA_USER: msel
   DOCKER_HOST: tcp://localhost:2375
+  DOCKER_API_VERSION: "1.43"
 
 jobs:
   pipeline:

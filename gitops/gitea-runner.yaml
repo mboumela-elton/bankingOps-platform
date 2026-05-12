@@ -64,6 +64,10 @@ spec:
                 sleep 2
               done
 
+              echo "Installing Docker CLI..."
+              apk add --no-cache docker-cli 2>/dev/null || \
+                (apt-get update -qq && apt-get install -y -qq docker.io) 2>/dev/null || true
+
               echo "Registering runner..."
               /usr/local/bin/act_runner register \
                 --no-interactive \
