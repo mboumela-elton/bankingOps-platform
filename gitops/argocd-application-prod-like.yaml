@@ -13,7 +13,7 @@ spec:
 
   source:
     repoURL: https://github.com/mboumela-elton/bankingOps-platform.git
-    targetRevision: develop
+    targetRevision: master
     path: helm/bankingops
     helm:
       valueFiles:
