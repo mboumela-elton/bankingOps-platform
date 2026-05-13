@@ -2,15 +2,44 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: bankingops-ingress
+  name: {{ .Release.Name }}-ingress
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
     chart: {{ .Chart.Name }}-{{ .Chart.Version }}
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    # Pas de rewrite — on préserve le path complet (/users, /transactions, etc.)
+    # nginx.ingress.kubernetes.io/rewrite-target: / ← supprimé intentionnellement
+
+    # Taille max des requêtes (utile pour les uploads)
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+
+    # Timeouts adaptés à une API Spring Boot (démarrage lent possible)
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+
+    # Headers utiles pour les APIs derrière un proxy
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-Frame-Options: DENY";
+
+    {{- if .Values.ingress.tls.enabled }}
+    # Redirection HTTP → HTTPS automatique
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    {{- else }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    {{- end }}
+
 spec:
   ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
   rules:
     - host: {{ .Values.ingress.host }}
       http:

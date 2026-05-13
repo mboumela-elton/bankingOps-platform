@@ -29,4 +29,7 @@ config:
   logLevel: DEBUG
 
 ingress:
-  host: bankingops-dev.local
+  # Convention hors-prod : <api>.bankingops.hors.prod.fr
+  host: transaction-api.bankingops.hors.prod.fr
+  tls:
+    enabled: false    # pas de TLS en dev
