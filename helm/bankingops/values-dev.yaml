@@ -5,9 +5,9 @@
 api:
   replicas: 1
   image:
-    repository: bankingops-api
-    tag: latest
-    pullPolicy: Never    # image locale chargée dans kind
+    repository: msel/bankingops-api
+    tag: "master-d7cfe8c0"
+    pullPolicy: Always
   resources:
     requests:
       memory: "256Mi"
