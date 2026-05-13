@@ -3,12 +3,9 @@
 #
 # Flux :
 #   push develop/master
-#     → tests unitaires
-#     → build Docker image
-#     → scan Trivy
-#     → push Docker Hub
-#     → update values-dev.yaml (tag image)
-#     → ArgoCD détecte le changement → sync Kubernetes
+#     → tests unitaires (toutes branches)
+#     → build + scan + push Docker Hub (si secrets configurés)
+#     → update values-dev.yaml → ArgoCD sync (master uniquement)
 ################################################################################
 
 name: CI/CD Pipeline
@@ -25,11 +22,11 @@ on:
       - 'helm/bankingops/values-dev.yaml'   # évite la boucle infinie
 
 env:
-  IMAGE_NAME: mboumela-elton/bankingops-api   # format Docker Hub: <username>/<image>
+  IMAGE_NAME: mboumela-elton/bankingops-api
 
 jobs:
   ################################################################################
-  # JOB 1 — Tests unitaires
+  # JOB 1 — Tests unitaires (toutes branches)
   ################################################################################
   test:
     name: Tests
@@ -52,12 +49,14 @@ jobs:
           mvn test -B
 
   ################################################################################
-  # JOB 2 — Build, Scan, Push
+  # JOB 2 — Build, Scan, Push (uniquement si secrets Docker Hub configurés)
   ################################################################################
   build-and-push:
     name: Build & Push
     runs-on: ubuntu-latest
     needs: test
+    # Ne tourne que si les secrets Docker Hub sont configurés
+    if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
 
     outputs:
       image_tag: ${{ steps.meta.outputs.tag }}
@@ -94,7 +93,7 @@ jobs:
           image-ref: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
           format: table
           severity: HIGH,CRITICAL
-          exit-code: '0'   # ne bloque pas le pipeline sur les vulnérabilités
+          exit-code: '0'
 
       - name: Push image to Docker Hub
         run: |
@@ -103,25 +102,26 @@ jobs:
           echo "Pushed: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}"
 
   ################################################################################
-  # JOB 3 — Update Helm values → déclenche ArgoCD sync
+  # JOB 3 — Update Helm values → ArgoCD sync (master uniquement)
   ################################################################################
   update-helm:
     name: Update Helm Values
     runs-on: ubuntu-latest
     needs: build-and-push
+    # GitOps uniquement sur master, et seulement si le build a réussi
+    if: ${{ github.ref_name == 'master' && needs.build-and-push.result == 'success' }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GH_PAT }}   # Personal Access Token pour pouvoir push
+          token: ${{ secrets.GH_PAT }}
 
       - name: Update image tag in values-dev.yaml
         run: |
           TAG="${{ needs.build-and-push.outputs.image_tag }}"
           IMAGE="${{ env.IMAGE_NAME }}"
 
-          # Met à jour le repository et le tag dans values-dev.yaml
           sed -i "s|repository:.*|repository: ${IMAGE}|" helm/bankingops/values-dev.yaml
           sed -i "s|tag:.*|tag: \"${TAG}\"|"             helm/bankingops/values-dev.yaml
           sed -i "s|pullPolicy:.*|pullPolicy: Always|"   helm/bankingops/values-dev.yaml
@@ -138,5 +138,5 @@ jobs:
           git diff --staged --quiet && echo "No changes" && exit 0
 
           git commit -m "ci: update image tag to ${{ needs.build-and-push.outputs.image_tag }} [skip ci]"
-          git push origin ${{ github.ref_name }}
+          git push origin master
           echo "Pushed — ArgoCD will detect and sync automatically"
