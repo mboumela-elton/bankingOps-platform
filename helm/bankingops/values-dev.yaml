@@ -3,7 +3,7 @@
 ################################################################################
 
 api:
-  replicas: 1
+  replicas: 2
   image:
     repository: bankingops-api
     tag: latest
