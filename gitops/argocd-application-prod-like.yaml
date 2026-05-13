@@ -12,7 +12,7 @@ spec:
   project: default
 
   source:
-    repoURL: http://gitea.gitea.svc.cluster.local:3000/msel/bankingops-platform.git
+    repoURL: https://github.com/mboumela-elton/bankingOps-platform.git
     targetRevision: develop
     path: helm/bankingops
     helm:
