@@ -22,7 +22,7 @@ on:
       - 'helm/bankingops/values-dev.yaml'   # évite la boucle infinie
 
 env:
-  IMAGE_NAME: mboumela-elton/bankingops-api
+  IMAGE_NAME: msel/bankingops-api
 
 jobs:
   ################################################################################
