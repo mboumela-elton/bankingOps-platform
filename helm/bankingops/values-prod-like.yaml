@@ -4,6 +4,10 @@
 
 api:
   replicas: 3
+  image:
+    repository: mboumela-elton/bankingops-api
+    tag: latest
+    pullPolicy: Always    # pull depuis Docker Hub en prod
   resources:
     requests:
       memory: "512Mi"
