@@ -7,7 +7,7 @@ api:
   image:
     repository: bankingops-api
     tag: latest
-    pullPolicy: Never        # "Never" for kind (local image), "Always" for real registry
+    pullPolicy: Never        # "Never" for kind (local image), "Always" for Docker Hub (msel/bankingops-api)
 
   replicas: 2
 
