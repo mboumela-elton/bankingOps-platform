@@ -70,7 +70,7 @@ public class TransactionServiceTest {
                 .currency("USD")
                 .build();
 
-        when(userRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
+        when(userRepository.existsById(testUserId)).thenReturn(true);
         when(transactionRepository.save(any(Transaction.class))).thenReturn(testTransaction);
 
         TransactionDTO result = transactionService.createTransaction(request);
@@ -89,7 +89,7 @@ public class TransactionServiceTest {
                 .currency("USD")
                 .build();
 
-        when(userRepository.findById(testUserId)).thenReturn(Optional.empty());
+        when(userRepository.existsById(testUserId)).thenReturn(false);
 
         assertThrows(RuntimeException.class, () -> transactionService.createTransaction(request));
     }

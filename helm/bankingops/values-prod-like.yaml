@@ -46,4 +46,8 @@ config:
   logLevel: WARN
 
 ingress:
-  host: bankingops.prod.local
+  # Convention prod : <api>.msel.fr
+  host: transaction-api.msel.fr
+  tls:
+    enabled: true
+    secretName: transaction-api-tls    # Secret contenant le certificat SSL

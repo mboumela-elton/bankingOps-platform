@@ -1,194 +1,205 @@
 # Banking Operations Platform
 
-A Spring Boot 4.0 application for managing banking transactions with comprehensive monitoring and structured logging.
+Spring Boot 4.0 API for managing banking transactions, deployed with Docker, Kubernetes (kind), Helm and GitOps (ArgoCD).
 
 ## Project Structure
 
 ```
 bankingops-platform/
-├── README.md
-├── k8s/                          # Kubernetes manifests
-│   ├── namespace.yaml
-│   ├── configmap.yaml
-│   ├── secret.yaml
-│   ├── api-deployment.yaml
-│   ├── api-service.yaml
-│   ├── postgres-statefulset.yaml
-│   ├── postgres-service.yaml
-│   ├── ingress.yaml
-│   ├── hpa.yaml
-│   └── deploy.sh
-└── app/                          # Application
-    ├── README.md
-    ├── DOCKER.md
-    ├── pom.xml
-    ├── Dockerfile
-    ├── docker-compose.yml
-    ├── .env.example
-    ├── docker-start.sh
-    ├── tests/
-    │   ├── test-api.sh
-    │   ├── test-actuator.sh
-    │   ├── docker-test.sh
-    │   └── README.md
-    └── src/
+├── .github/workflows/      # GitHub Actions CI/CD pipeline
+├── app/                    # Spring Boot application
+│   ├── src/                # Source code
+│   ├── tests/              # Test scripts
+│   ├── Dockerfile          # Multi-stage build
+│   ├── docker-compose.yml  # Local stack (API + PostgreSQL)
+│   └── .env.example        # Environment variables template
+├── k8s/                    # Raw Kubernetes manifests
+├── helm/bankingops/        # Helm chart
+│   ├── values.yaml         # Default values
+│   ├── values-dev.yaml     # Dev overrides
+│   └── values-prod-like.yaml
+└── gitops/                 # ArgoCD applications
 ```
 
-## Quick Start
+---
 
-### Local Development
+## Prerequisites
+
+- Java 17, Maven
+- Docker & Docker Compose
+- kubectl, kind, helm
+- PostgreSQL (local dev only)
+
+---
+
+## 1. Local Development
+
+```bash
+./app/init-db.sh
+./app/run-app.sh
+# or
+cd app && mvn spring-boot:run -DskipTests
+```
+
+---
+
+## 2. Docker Compose
 
 ```bash
 cd app
-
-# Initialize database
-./init-db.sh
-
-# Start application
-./run-app.sh
-
-# Test endpoints
-./tests/test-api.sh
-./tests/test-actuator.sh
-```
-
-### Docker Deployment
-
-```bash
-cd app
-
-# Create environment file
 cp .env.example .env
-
-# Start services
-./docker-start.sh up
-
-# Run integration tests
-./tests/docker-test.sh
-
-# Stop services
-./docker-start.sh down
+docker compose up -d --build
+docker compose logs -f api
+docker compose down
 ```
 
-## Documentation
+---
 
-- **[app/README.md](app/README.md)** - Complete application documentation
-- **[app/DOCKER.md](app/DOCKER.md)** - Docker setup and deployment guide
-- **[app/tests/README.md](app/tests/README.md)** - Test scripts documentation
+## 3. Kubernetes (kind)
 
-## Key Features
+```bash
+# Create cluster
+kind create cluster --name bankingops
 
-- ✅ Spring Boot 4.0 with Java 17
-- ✅ PostgreSQL database integration
-- ✅ Spring Boot Actuator monitoring
-- ✅ Structured JSON logging
-- ✅ Spring Security configuration
-- ✅ Comprehensive error handling
-- ✅ Request ID tracking
-- ✅ Latency measurement
-- ✅ Docker multi-stage build
-- ✅ Docker Compose orchestration
-- ✅ Health checks and monitoring
+# Build and load image
+docker build -t bankingops-api:latest app/
+kind load docker-image bankingops-api:latest --name bankingops
 
-## Technology Stack
+# Deploy
+./k8s/deploy.sh
 
-- **Framework**: Spring Boot 4.0.6
-- **Language**: Java 17
-- **Database**: PostgreSQL 14
-- **Build Tool**: Maven
-- **Containerization**: Docker & Docker Compose
-- **Monitoring**: Spring Boot Actuator
-- **Logging**: Logback with JSON formatting
-- **Security**: Spring Security
+# Verify
+kubectl get pods -n bankingops-dev
+kubectl port-forward svc/transaction-api 8000:80 -n bankingops-dev
+curl http://localhost:8000/health
+```
+
+---
+
+## 4. Helm
+
+```bash
+helm lint helm/bankingops
+
+# Dev
+helm upgrade --install bankingops helm/bankingops \
+  -f helm/bankingops/values-dev.yaml \
+  -n bankingops-dev --create-namespace
+
+# Prod-like
+helm upgrade --install bankingops helm/bankingops \
+  -f helm/bankingops/values-prod-like.yaml \
+  -n bankingops-prod --create-namespace
+```
+
+---
+
+## 5. GitOps (ArgoCD + GitHub)
+
+ArgoCD surveille le repo GitHub et synchronise automatiquement le cluster.
+
+### Installer ArgoCD
+
+```bash
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/crds/application-crd.yaml
+kubectl delete networkpolicies -n argocd --all
+kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=180s
+```
+
+### Accéder à l'UI
+
+```bash
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+# https://localhost:8080  |  login: admin
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 -d
+```
+
+### Connecter le repo GitHub
+
+Via l'UI ArgoCD : Settings → Repositories → Connect Repo (HTTPS + token GitHub)
+
+### Déployer l'application
+
+```bash
+kubectl apply -f gitops/argocd-application-dev.yaml
+kubectl get applications -n argocd
+```
+
+### Workflow GitOps
+
+```bash
+# Modifier une valeur, committer et pousser
+git push origin develop
+# ArgoCD détecte et synchronise automatiquement (< 3 min)
+kubectl get pods -n bankingops-dev -w
+```
+
+---
+
+## 6. CI/CD (GitHub Actions)
+
+Le pipeline `.github/workflows/ci-cd.yaml` se déclenche sur chaque push sur `develop` ou `master` :
+
+1. Tests unitaires Maven
+2. Build Docker image
+3. Scan Trivy (vulnérabilités)
+4. Push vers Docker Hub
+5. Mise à jour du tag dans `values-dev.yaml` → ArgoCD sync
+
+### Secrets GitHub requis
+
+| Secret | Description |
+|--------|-------------|
+| `DOCKERHUB_USERNAME` | Ton username Docker Hub |
+| `DOCKERHUB_TOKEN` | Token Docker Hub (Settings → Security) |
+| `GH_PAT` | GitHub Personal Access Token (scope: `repo`) |
+
+---
+
+## Ingress — Convention de nommage
+
+| Environnement | Format | Exemple |
+|---------------|--------|---------|
+| Hors-prod | `<api>.bankingops.hors.prod.fr` | `transaction-api.bankingops.hors.prod.fr` |
+| Prod | `<api>.msel.fr` | `transaction-api.msel.fr` |
+
+---
 
 ## API Endpoints
 
-### Users
-- `POST /users` - Create user
-- `GET /users/{id}` - Get user
-- `GET /users/{id}/transactions` - Get user transactions
-
-### Transactions
-- `POST /transactions` - Create transaction
-- `GET /transactions/{id}` - Get transaction
-- `POST /transactions/{id}/validate` - Validate transaction
-- `POST /transactions/{id}/fail` - Fail transaction
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| POST | `/users` | Create user |
+| GET | `/users/{id}` | Get user |
+| GET | `/users/{id}/transactions` | Get user transactions |
+| POST | `/transactions` | Create transaction |
+| GET | `/transactions/{id}` | Get transaction |
+| POST | `/transactions/{id}/validate` | Validate transaction |
+| POST | `/transactions/{id}/fail` | Fail transaction |
 
 ## Monitoring
 
-Access monitoring endpoints at `/actuator`:
-
-- `/actuator/health` - Application health
-- `/actuator/info` - Application info
-- `/actuator/metrics` - Available metrics
-- `/actuator/env` - Environment variables
-- `/actuator/beans` - Spring beans
-- `/actuator/loggers` - Logger configuration
-
-## Build & Compile
-
 ```bash
-cd app
-
-# Compile
-mvn clean compile -DskipTests
-
-# Run tests
-mvn test
-
-# Build JAR
-mvn clean package
-
-# Run with Maven
-mvn spring-boot:run -DskipTests
+curl http://localhost:8080/actuator/health
+curl http://localhost:8080/actuator/metrics
 ```
 
-## Docker Commands
+## Stack
 
-```bash
-cd app
-
-# Build and start
-docker compose up -d --build
-
-# View logs
-docker compose logs -f
-
-# Stop services
-docker compose down
-
-# Clean up (remove volumes)
-docker compose down -v
-```
-
-## Troubleshooting
-
-### Application won't start
-```bash
-# Check PostgreSQL is running
-psql -U postgres -l
-
-# Reinitialize database
-./init-db.sh
-
-# Check logs
-tail -f app/logs/bankingops.log
-```
-
-### Docker issues
-```bash
-# Check running containers
-docker compose ps
-
-# View logs
-docker compose logs
-
-# Restart services
-docker compose restart
-
-# Clean rebuild
-docker compose down -v
-docker compose up -d --build
-```
-
-For more information, see [app/README.md](app/README.md) and [app/DOCKER.md](app/DOCKER.md)
+| Layer | Technology |
+|-------|-----------|
+| Language | Java 17 |
+| Framework | Spring Boot 4.0 |
+| Database | PostgreSQL 14 |
+| Build | Maven |
+| Container | Docker |
+| Orchestration | Kubernetes (kind) |
+| Packaging | Helm |
+| CI/CD | GitHub Actions |
+| GitOps | ArgoCD |
+| Registry | Docker Hub |
+| Monitoring | Spring Boot Actuator |

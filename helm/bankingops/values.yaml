@@ -54,7 +54,11 @@ service:
 ingress:
   enabled: true
   className: nginx
-  host: bankingops.local
+  # Host par défaut — surchargé dans values-dev.yaml et values-prod-like.yaml
+  host: bankingops.hors.prod.fr
+  tls:
+    enabled: false        # true en prod avec un vrai certificat
+    secretName: bankingops-tls
 
 # --- PostgreSQL ---
 postgres:
