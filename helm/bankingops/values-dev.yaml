@@ -5,9 +5,9 @@
 api:
   replicas: 1
   image:
-    repository: mboumela-elton/bankingops-api
+    repository: bankingops-api
     tag: latest
-    pullPolicy: Always    # pull depuis Docker Hub
+    pullPolicy: Never    # image locale chargée dans kind
   resources:
     requests:
       memory: "256Mi"
